@@ -269,8 +269,7 @@ async function handleYouTubeSubmit() {
   if (!url) return;
   showError(els.uploadError, "");
   els.ytSubmit.disabled = true;
-  els.uploadStatus.hidden = false;
-  els.uploadStatus.textContent = "抓取字幕中（首次可能需要 5–10 秒）…";
+  els.ytHint.textContent = "抓取字幕中（首次可能需要 5–10 秒）…";
   try {
     const r = await fetch("/api/import/youtube", {
       method: "POST",
@@ -296,7 +295,7 @@ async function handleYouTubeSubmit() {
     showError(els.uploadError, "抓取字幕失敗：" + (err?.message || err));
   } finally {
     els.ytSubmit.disabled = false;
-    els.uploadStatus.hidden = true;
+    els.ytHint.textContent = "支援 watch / youtu.be / shorts";
   }
 }
 

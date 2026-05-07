@@ -42,6 +42,25 @@
     <!-- State B: Logged in, awaiting upload -->
     <section class="state-b" data-section="b">
       <div class="upload-wrap">
+        <div class="paste-card">
+          <label for="ytUrlInput" class="paste-label">貼上 YouTube 連結</label>
+          <input
+            id="ytUrlInput"
+            class="yt-url-input"
+            type="url"
+            placeholder="https://www.youtube.com/watch?v=…"
+            autocomplete="off"
+          />
+          <div class="paste-row">
+            <span id="ytHint" class="paste-count">支援 watch / youtu.be / shorts</span>
+            <button id="ytSubmit" class="btn-primary" type="button" disabled>
+              抓取字幕
+            </button>
+          </div>
+        </div>
+
+        <div class="upload-or" aria-hidden="true"><span>或</span></div>
+
         <label id="dropzone" class="dropzone" for="fileInput">
           <div class="dropzone-icon" aria-hidden="true">📄</div>
           <div class="dropzone-text">拖曳或點擊上傳 .txt 檔案</div>
@@ -63,25 +82,6 @@
             <span id="pasteCount" class="paste-count">0 字元</span>
             <button id="pasteSubmit" class="btn-primary" type="button" disabled>
               開始對話
-            </button>
-          </div>
-        </div>
-
-        <div class="upload-or" aria-hidden="true"><span>或</span></div>
-
-        <div class="paste-card">
-          <label for="ytUrlInput" class="paste-label">貼上 YouTube 連結</label>
-          <input
-            id="ytUrlInput"
-            class="yt-url-input"
-            type="url"
-            placeholder="https://www.youtube.com/watch?v=…"
-            autocomplete="off"
-          />
-          <div class="paste-row">
-            <span id="ytHint" class="paste-count">支援 watch / youtu.be / shorts</span>
-            <button id="ytSubmit" class="btn-primary" type="button" disabled>
-              抓取字幕
             </button>
           </div>
         </div>
