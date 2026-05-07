@@ -107,13 +107,13 @@ function chatStream(sid: string, message: string, selection?: string): Response 
 
       const stderrPromise = (async () => {
         const dec = new TextDecoder();
-        for await (const chunk of proc.stderr as ReadableStream<Uint8Array>) {
+        for await (const chunk of proc.stderr as unknown as AsyncIterable<Uint8Array>) {
           stderrBuffer += dec.decode(chunk, { stream: true });
         }
       })();
 
       try {
-        for await (const chunk of proc.stdout as ReadableStream<Uint8Array>) {
+        for await (const chunk of proc.stdout as unknown as AsyncIterable<Uint8Array>) {
           buffer += decoder.decode(chunk, { stream: true });
           const lines = buffer.split("\n");
           buffer = lines.pop() ?? "";

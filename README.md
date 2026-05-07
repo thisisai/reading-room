@@ -48,7 +48,7 @@ PORT=8080 bun run server.ts
 
 ## 使用方式
 
-1. **YouTube 字幕**：貼上 YouTube 連結（支援 watch / youtu.be / shorts），自動下載英文字幕作為對話來源
+1. **YouTube 字幕**：貼上 YouTube 連結（支援 watch / youtu.be / shorts），自動下載字幕作為對話來源（優先英文，再 fallback 中文 / 粵語）
 2. **上傳文件**：把 `.txt` 檔案拖曳到上傳區
 3. **貼上文字**：直接貼上文字內容開始對話
 4. **開始對話**：在右側輸入框輸入問題，Enter 送出
@@ -58,6 +58,6 @@ PORT=8080 bun run server.ts
 ## 注意事項
 
 - 上傳檔案僅支援 `.txt` 格式，最大 5 MB；YouTube 字幕同樣受此上限限制（一般影片遠小於此）
-- YouTube 字幕預設抓英文（`en-orig,en`），若影片無英文字幕會回報錯誤
+- YouTube 字幕優先抓英文，找不到則 fallback 中文（zh-Hant / zh-Hans / zh-TW / zh-CN / zh-HK / yue 等）；都沒有才回報錯誤
 - 對話 session 存在記憶體裡，重啟伺服器後需要重新上傳文件
 - 伺服器預設只監聽 `127.0.0.1`（本機），不對外開放
