@@ -202,6 +202,11 @@ body[data-state="c"] [data-section="c"] {
   align-items: center;
   gap: 12px;
 }
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
 .brand {
   font-weight: 600;
   font-size: 15px;

@@ -46,6 +46,17 @@ function startLogin(): void {
   });
 }
 
+async function logout(): Promise<{ ok: boolean; error?: string }> {
+  const proc = Bun.spawn(["claude", "auth", "logout"], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const stderr = await new Response(proc.stderr).text();
+  const code = await proc.exited;
+  if (code !== 0) return { ok: false, error: stderr.trim().slice(0, 300) };
+  return { ok: true };
+}
+
 function buildChatArgs(sid: string, session: Session): string[] {
   const args = [
     "-p",
@@ -219,6 +230,16 @@ serve({
         loginInFlight = false;
       }, 5 * 60 * 1000);
       return json({ started: true }, 202);
+    }
+
+    if (req.method === "POST" && pathname === "/api/auth/logout") {
+      // Drop all in-memory sessions — chat without auth would fail anyway.
+      sessions.clear();
+      const result = await logout();
+      if (!result.ok) {
+        return json({ error: result.error || "登出失敗" }, 500);
+      }
+      return json({ ok: true });
     }
 
     if (req.method === "POST" && pathname === "/api/upload") {

@@ -20,6 +20,7 @@ const els = {
   body: document.body,
   loginBtn: $("loginBtn"),
   loginHint: $("loginHint"),
+  logoutBtn: $("logoutBtn"),
   userInfo: $("userInfo"),
   newDocBtn: $("newDocBtn"),
   dropzone: $("dropzone"),
@@ -102,12 +103,55 @@ async function bootApp() {
 function enterLoggedInState() {
   setUserInfo(state.auth);
   els.newDocBtn.hidden = true;
+  els.logoutBtn.hidden = false;
   if (state.sessionId) {
     // try to restore by fetching the file
     restoreSessionOrFallback();
   } else {
     setState("b");
   }
+}
+
+async function handleLogout() {
+  if (!confirm("確定要登出嗎？目前的對話 session 會一併清空。")) return;
+  els.logoutBtn.disabled = true;
+  els.logoutBtn.textContent = "登出中…";
+  try {
+    const r = await fetch("/api/auth/logout", { method: "POST" });
+    if (!r.ok) {
+      const data = await r.json().catch(() => ({}));
+      alert(data.error || `登出失敗 (${r.status})`);
+      return;
+    }
+  } catch (err) {
+    alert("登出失敗：" + (err?.message || err));
+    return;
+  } finally {
+    els.logoutBtn.disabled = false;
+    els.logoutBtn.textContent = "登出";
+  }
+
+  // Reset client-side state to landing page.
+  if (state.abortController) {
+    try { state.abortController.abort(); } catch {}
+  }
+  state.auth = null;
+  state.sessionId = null;
+  state.filename = null;
+  state.charCount = 0;
+  state.docContent = null;
+  state.streaming = false;
+  state.abortController = null;
+  sessionStorage.removeItem("rr.sessionId");
+  els.chatMessages.innerHTML = "";
+  els.docBody.innerHTML = "";
+  setUserInfo(null);
+  els.logoutBtn.hidden = true;
+  els.newDocBtn.hidden = true;
+  els.loginBtn.disabled = false;
+  els.loginBtn.textContent = "以 Claude.ai 登入";
+  els.loginHint.hidden = true;
+  setState("a");
 }
 
 async function restoreSessionOrFallback() {
@@ -1008,8 +1052,9 @@ function initPaneResize() {
 
 // ----- Wire up events -----
 function init() {
-  // Login
+  // Login / logout
   els.loginBtn.addEventListener("click", startLoginFlow);
+  els.logoutBtn.addEventListener("click", handleLogout);
 
   // New doc
   els.newDocBtn.addEventListener("click", resetToUploadState);
