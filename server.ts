@@ -32,7 +32,11 @@ async function getAuthStatus(): Promise<Record<string, unknown>> {
   const out = await new Response(proc.stdout).text();
   await proc.exited;
   try {
-    return JSON.parse(out);
+    const parsed = JSON.parse(out);
+    // Lazy-clear the in-flight gate once login has actually succeeded, so a
+    // subsequent logout→login round trip isn't blocked by the 5-min timer.
+    if (parsed?.loggedIn) loginInFlight = false;
+    return parsed;
   } catch {
     return { loggedIn: false, error: "auth status parse failed" };
   }
@@ -239,6 +243,9 @@ serve({
       if (!result.ok) {
         return json({ error: result.error || "登出失敗" }, 500);
       }
+      // Clear the login-in-flight gate so the next /api/auth/login starts
+      // a fresh `claude auth login` instead of being deduped.
+      loginInFlight = false;
       return json({ ok: true });
     }
 
