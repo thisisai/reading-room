@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { parseJson3Transcript } from './yt-json3-parser';
 
-const DEFAULT_LANGS = 'en-orig,en';
+const LANG_GROUPS = ['en-orig,en', 'zh-Hant,zh-Hans,zh', '.*'];
 
 async function spawnYtDlp(
   args: string[],
@@ -79,12 +79,49 @@ export type FetchTranscriptResult = {
   text: string;
 };
 
+async function tryDownloadLangs(
+  url: string,
+  langs: string,
+  outputDir: string,
+  outputTemplate: string,
+  manualOnly: boolean,
+): Promise<{ json3Path: string; langUsed: string } | null> {
+  // clean any leftover files from a previous attempt
+  for (const f of readdirSync(outputDir).filter((f) => f.endsWith('.json3'))) {
+    try { rmSync(join(outputDir, f), { force: true }); } catch {}
+  }
+
+  const result = await spawnYtDlp([
+    '--skip-download',
+    manualOnly ? '--write-subs' : '--write-auto-subs',
+    '--sub-langs', langs,
+    '--sub-format', 'json3',
+    '--output', outputTemplate,
+    url,
+  ]);
+
+  if (result.exitCode !== 0) {
+    const errorLines = result.stderr
+      .split('\n')
+      .filter((l) => l.startsWith('ERROR:'))
+      .join('\n')
+      .trim();
+    const msg = errorLines || result.stderr.trim() || result.stdout.trim();
+    throw new Error(`下載字幕失敗：${msg.slice(0, 800)}`);
+  }
+
+  const json3Path = findDownloadedJson3(outputDir, result.stderr);
+  if (!json3Path) return null;
+
+  return { json3Path, langUsed: getDownloadedLanguage(result.stderr) };
+}
+
 export async function fetchYouTubeTranscript(
   url: string,
   opts: { langs?: string; manualOnly?: boolean } = {},
 ): Promise<FetchTranscriptResult> {
-  const langs = opts.langs ?? DEFAULT_LANGS;
   const manualOnly = opts.manualOnly ?? false;
+  const langGroups = opts.langs ? [opts.langs] : LANG_GROUPS;
 
   const videoId = await getVideoId(url);
   const outputDir = join(tmpdir(), 'reading-room-yt', videoId);
@@ -96,38 +133,17 @@ export async function fetchYouTubeTranscript(
   mkdirSync(outputDir, { recursive: true });
 
   try {
-    const result = await spawnYtDlp([
-      '--skip-download',
-      manualOnly ? '--write-subs' : '--write-auto-subs',
-      '--sub-langs', langs,
-      '--sub-format', 'json3',
-      '--output', outputTemplate,
-      url,
-    ]);
+    for (const langs of langGroups) {
+      const hit = await tryDownloadLangs(url, langs, outputDir, outputTemplate, manualOnly);
+      if (!hit) continue;
 
-    if (result.exitCode !== 0) {
-      const errorLines = result.stderr
-        .split('\n')
-        .filter((l) => l.startsWith('ERROR:'))
-        .join('\n')
-        .trim();
-      const msg = errorLines || result.stderr.trim() || result.stdout.trim();
-      throw new Error(`下載字幕失敗：${msg.slice(0, 800)}`);
+      const text = parseJson3Transcript(readFileSync(hit.json3Path, 'utf8'));
+      if (!text.trim()) continue;
+
+      return { videoId, langUsed: hit.langUsed, text };
     }
 
-    const json3Path = findDownloadedJson3(outputDir, result.stderr);
-    if (!json3Path) {
-      throw new Error(
-        '找不到字幕。這部影片可能沒有提供字幕，或指定語言不存在。',
-      );
-    }
-
-    const text = parseJson3Transcript(readFileSync(json3Path, 'utf8'));
-    if (!text.trim()) {
-      throw new Error('字幕內容為空，無法開始對話。');
-    }
-
-    return { videoId, langUsed: getDownloadedLanguage(result.stderr), text };
+    throw new Error('找不到字幕。這部影片可能沒有提供任何語言的字幕。');
   } finally {
     try { rmSync(outputDir, { recursive: true, force: true }); } catch {}
   }
