@@ -41,8 +41,17 @@ async function spawnYtDlp(
   return { stdout, stderr, exitCode };
 }
 
-export async function getVideoId(url: string): Promise<string> {
-  const result = await spawnYtDlp(['--print', 'id', '--skip-download', url]);
+export type VideoMeta = { id: string; title: string };
+
+export async function getVideoMeta(url: string): Promise<VideoMeta> {
+  // Print id and title on separate lines, in order. yt-dlp guarantees the
+  // order of multiple --print flags.
+  const result = await spawnYtDlp([
+    '--print', 'id',
+    '--print', 'title',
+    '--skip-download',
+    url,
+  ]);
   if (result.exitCode !== 0) {
     const msg = (result.stderr || result.stdout).trim();
     if (msg.includes('Private video') || msg.includes('This video is private')) {
@@ -51,9 +60,16 @@ export async function getVideoId(url: string): Promise<string> {
     if (msg.includes('age') || msg.includes('Sign in') || msg.includes('age-restricted')) {
       throw new Error('這部影片需要年齡驗證，無法自動存取字幕。');
     }
-    throw new Error(`無法取得影片 ID：${msg.slice(0, 300)}`);
+    throw new Error(`無法取得影片資訊：${msg.slice(0, 300)}`);
   }
-  return result.stdout.trim().split('\n').at(-1) ?? 'unknown-video';
+  const lines = result.stdout.trim().split('\n').filter(Boolean);
+  const id = lines[0] ?? 'unknown-video';
+  const title = lines[1] ?? id;
+  return { id, title };
+}
+
+export async function getVideoId(url: string): Promise<string> {
+  return (await getVideoMeta(url)).id;
 }
 
 function escapeRegExp(value: string): string {
@@ -103,6 +119,7 @@ function findDownloadedSubtitle(outputDir: string, stderr: string): string | und
 
 export type FetchTranscriptResult = {
   videoId: string;
+  videoTitle: string;
   langUsed: string;
   text: string;
 };
@@ -169,7 +186,7 @@ export async function fetchYouTubeTranscript(
   const manualOnly = opts.manualOnly ?? false;
   const langGroups = opts.langs ? [opts.langs] : LANG_GROUPS;
 
-  const videoId = await getVideoId(url);
+  const { id: videoId, title: videoTitle } = await getVideoMeta(url);
   const outputDir = join(tmpdir(), 'reading-room-yt', videoId);
   const outputTemplate = join(outputDir, 'subtitle.%(ext)s');
 
@@ -190,7 +207,7 @@ export async function fetchYouTubeTranscript(
         : parseJson3Transcript(raw);
       if (!text.trim()) continue;
 
-      return { videoId, langUsed: hit.langUsed, text };
+      return { videoId, videoTitle, langUsed: hit.langUsed, text };
     }
 
     throw new Error('找不到字幕。這部影片可能沒有提供任何語言的字幕。');

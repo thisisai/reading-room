@@ -206,8 +206,12 @@ async function handleUpload(file) {
   }
 }
 
+function stripExt(name) {
+  return (name || "").replace(/\.[^.\/]+$/, "");
+}
+
 function renderDoc(filename, content) {
-  els.docFilename.textContent = filename;
+  els.docFilename.textContent = stripExt(filename);
   els.docCharCount.textContent = `${fmtNumber((content || "").length)} 字元`;
   state.docContent = content || "";
   rerenderDoc();

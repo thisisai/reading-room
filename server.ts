@@ -261,11 +261,11 @@ serve({
       const url = (body.url ?? "").trim();
       if (!url) return json({ error: "缺少 url" }, 400);
       try {
-        const { videoId, langUsed, text } = await fetchYouTubeTranscript(url);
+        const { videoId, videoTitle, langUsed, text } = await fetchYouTubeTranscript(url);
         if (text.length > MAX_FILE_BYTES) {
           return json({ error: "字幕長度超過 5MB 上限" }, 413);
         }
-        const filename = `yt-${videoId}.txt`;
+        const filename = videoTitle?.trim() ? `${videoTitle.trim()}.txt` : `yt-${videoId}.txt`;
         const sessionId = crypto.randomUUID();
         sessions.set(sessionId, { filename, content: text, started: false });
         return json({ sessionId, filename, charCount: text.length, videoId, langUsed });
