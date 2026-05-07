@@ -3,7 +3,7 @@
 // ----- State -----
 const state = {
   auth: null, // last /api/auth/status payload
-  sessionId: sessionStorage.getItem("ttd.sessionId") || null,
+  sessionId: sessionStorage.getItem("rr.sessionId") || null,
   filename: null,
   charCount: 0,
   armedQuote: null, // string or null
@@ -120,7 +120,7 @@ async function restoreSessionOrFallback() {
     renderDoc(data.filename, data.content);
     enterChatState();
   } catch {
-    sessionStorage.removeItem("ttd.sessionId");
+    sessionStorage.removeItem("rr.sessionId");
     state.sessionId = null;
     setState("b");
   }
@@ -190,7 +190,7 @@ async function handleUpload(file) {
     state.sessionId = data.sessionId;
     state.filename = data.filename;
     state.charCount = data.charCount;
-    sessionStorage.setItem("ttd.sessionId", state.sessionId);
+    sessionStorage.setItem("rr.sessionId", state.sessionId);
     // fetch full content to render
     const fr = await fetch(`/api/file/${state.sessionId}`);
     const fdata = await fr.json();
@@ -237,7 +237,7 @@ function resetToUploadState() {
   state.sessionId = null;
   state.filename = null;
   state.charCount = 0;
-  sessionStorage.removeItem("ttd.sessionId");
+  sessionStorage.removeItem("rr.sessionId");
   els.chatMessages.innerHTML = "";
   els.docBody.innerHTML = "";
   els.docBody.classList.remove("is-markdown", "markdown-body");
@@ -286,7 +286,7 @@ async function handleYouTubeSubmit() {
     state.sessionId = data.sessionId;
     state.filename = data.filename;
     state.charCount = data.charCount;
-    sessionStorage.setItem("ttd.sessionId", state.sessionId);
+    sessionStorage.setItem("rr.sessionId", state.sessionId);
     const fr = await fetch(`/api/file/${state.sessionId}`);
     const fdata = await fr.json();
     renderDoc(fdata.filename, fdata.content);
