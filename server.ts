@@ -1,0 +1,286 @@
+import { serve } from "bun";
+
+type Session = {
+  filename: string;
+  content: string;
+  started: boolean;
+};
+
+const sessions = new Map<string, Session>();
+let loginInFlight = false;
+
+const UUID_RE = /^[0-9a-f-]{36}$/i;
+const PORT = Number(process.env.PORT ?? 3000);
+const MAX_FILE_BYTES = 5 * 1024 * 1024;
+
+const SYSTEM_PROMPT =
+  "你是文件學習助手。使用者已上傳一份 txt 文件，將在第一條訊息中提供全文。後續對話請以這份文件為主題協助使用者理解、討論、提問。請用繁體中文回答。";
+
+function json(data: unknown, status = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8" },
+  });
+}
+
+async function getAuthStatus(): Promise<Record<string, unknown>> {
+  const proc = Bun.spawn(["claude", "auth", "status", "--json"], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  const out = await new Response(proc.stdout).text();
+  await proc.exited;
+  try {
+    return JSON.parse(out);
+  } catch {
+    return { loggedIn: false, error: "auth status parse failed" };
+  }
+}
+
+function startLogin(): void {
+  Bun.spawn(["claude", "auth", "login", "--claudeai"], {
+    stdout: "ignore",
+    stderr: "ignore",
+    stdin: "ignore",
+  });
+}
+
+function buildChatArgs(sid: string, session: Session): string[] {
+  const args = [
+    "-p",
+    "--output-format",
+    "stream-json",
+    "--include-partial-messages",
+    "--verbose",
+    "--tools",
+    "",
+    "--model",
+    "sonnet",
+  ];
+  if (!session.started) {
+    args.push("--session-id", sid, "--append-system-prompt", SYSTEM_PROMPT);
+  } else {
+    args.push("--resume", sid);
+  }
+  return args;
+}
+
+function buildStdin(session: Session, message: string, selection?: string): string {
+  if (!session.started) {
+    return `以下是要討論的文件「${session.filename}」全文：\n\n---\n${session.content}\n---\n\n我的第一個問題：${message}`;
+  }
+  if (selection?.trim()) {
+    const quoted = selection.trim().replace(/\n/g, "\n> ");
+    return `針對文件中的這段：\n> ${quoted}\n\n我的問題：${message}`;
+  }
+  return message;
+}
+
+function chatStream(sid: string, message: string, selection?: string): Response {
+  const session = sessions.get(sid);
+  if (!session) return json({ error: "Session not found" }, 404);
+
+  const args = buildChatArgs(sid, session);
+  const proc = Bun.spawn(["claude", ...args], {
+    stdin: "pipe",
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+
+  const stdinText = buildStdin(session, message, selection);
+  proc.stdin.write(stdinText);
+  proc.stdin.end();
+
+  const encoder = new TextEncoder();
+  const sse = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, data: unknown) => {
+        controller.enqueue(
+          encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`),
+        );
+      };
+
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let stderrBuffer = "";
+
+      const stderrPromise = (async () => {
+        const dec = new TextDecoder();
+        for await (const chunk of proc.stderr as ReadableStream<Uint8Array>) {
+          stderrBuffer += dec.decode(chunk, { stream: true });
+        }
+      })();
+
+      try {
+        for await (const chunk of proc.stdout as ReadableStream<Uint8Array>) {
+          buffer += decoder.decode(chunk, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            let obj: any;
+            try {
+              obj = JSON.parse(line);
+            } catch {
+              continue;
+            }
+
+            if (
+              obj.type === "stream_event" &&
+              obj.event?.type === "content_block_delta" &&
+              obj.event?.delta?.type === "text_delta" &&
+              typeof obj.event.delta.text === "string"
+            ) {
+              send("delta", { text: obj.event.delta.text });
+            } else if (obj.type === "result") {
+              if (obj.is_error) {
+                send("error", {
+                  message: obj.result ?? "claude returned an error",
+                });
+              } else {
+                if (!session.started) session.started = true;
+                send("done", {
+                  usage: obj.usage,
+                  cost_usd: obj.total_cost_usd,
+                });
+              }
+            }
+          }
+        }
+
+        const code = await proc.exited;
+        await stderrPromise;
+        if (code !== 0) {
+          send("error", {
+            message: `claude exited with code ${code}`,
+            stderr: stderrBuffer.slice(0, 2000),
+          });
+        }
+        controller.close();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        send("error", { message: msg });
+        controller.close();
+      }
+    },
+    cancel() {
+      try {
+        proc.kill();
+      } catch {}
+    },
+  });
+
+  return new Response(sse, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
+
+function staticFile(path: string, contentType: string): Response {
+  const file = Bun.file(`./${path}`);
+  return new Response(file, {
+    headers: { "Content-Type": contentType },
+  });
+}
+
+serve({
+  port: PORT,
+  hostname: "127.0.0.1",
+  idleTimeout: 0,
+  async fetch(req) {
+    const url = new URL(req.url);
+    const { pathname } = url;
+
+    if (req.method === "GET" && (pathname === "/" || pathname === "/index.html")) {
+      return staticFile("index.html", "text/html; charset=utf-8");
+    }
+    if (req.method === "GET" && pathname === "/client.js") {
+      return staticFile("client.js", "application/javascript; charset=utf-8");
+    }
+    if (req.method === "GET" && pathname === "/styles.css") {
+      return staticFile("styles.css", "text/css; charset=utf-8");
+    }
+
+    if (req.method === "GET" && pathname === "/api/auth/status") {
+      return json(await getAuthStatus());
+    }
+
+    if (req.method === "POST" && pathname === "/api/auth/login") {
+      if (loginInFlight) return json({ queued: true }, 202);
+      loginInFlight = true;
+      startLogin();
+      setTimeout(() => {
+        loginInFlight = false;
+      }, 5 * 60 * 1000);
+      return json({ started: true }, 202);
+    }
+
+    if (req.method === "POST" && pathname === "/api/upload") {
+      let form: FormData;
+      try {
+        form = await req.formData();
+      } catch {
+        return json({ error: "Invalid multipart body" }, 400);
+      }
+      const file = form.get("file");
+      if (!(file instanceof File)) return json({ error: "No file uploaded" }, 400);
+      if (file.size === 0) return json({ error: "Empty file" }, 400);
+      if (file.size > MAX_FILE_BYTES) {
+        return json({ error: `File too large (max ${MAX_FILE_BYTES} bytes)` }, 400);
+      }
+      if (!file.name.toLowerCase().endsWith(".txt")) {
+        return json({ error: "Only .txt files are supported" }, 400);
+      }
+      const content = await file.text();
+      const sessionId = crypto.randomUUID();
+      sessions.set(sessionId, {
+        filename: file.name,
+        content,
+        started: false,
+      });
+      return json({
+        sessionId,
+        filename: file.name,
+        charCount: content.length,
+      });
+    }
+
+    const fileMatch = pathname.match(/^\/api\/file\/([^\/]+)$/);
+    if (req.method === "GET" && fileMatch) {
+      const sid = fileMatch[1];
+      if (!UUID_RE.test(sid)) return json({ error: "Invalid sessionId" }, 400);
+      const s = sessions.get(sid);
+      if (!s) return json({ error: "Session not found" }, 404);
+      return json({ filename: s.filename, content: s.content });
+    }
+
+    if (req.method === "POST" && pathname === "/api/chat") {
+      let body: { sessionId?: string; message?: string; selection?: string };
+      try {
+        body = await req.json();
+      } catch {
+        return json({ error: "Invalid JSON body" }, 400);
+      }
+      const { sessionId, message, selection } = body;
+      if (!sessionId || !UUID_RE.test(sessionId)) {
+        return json({ error: "Invalid sessionId" }, 400);
+      }
+      if (!sessions.has(sessionId)) {
+        return json({ error: "Session not found (server may have restarted)" }, 404);
+      }
+      if (!message || !message.trim()) {
+        return json({ error: "Empty message" }, 400);
+      }
+      return chatStream(sessionId, message, selection);
+    }
+
+    return new Response("Not found", { status: 404 });
+  },
+});
+
+console.log(`talk-to-doc listening on http://localhost:${PORT}`);
