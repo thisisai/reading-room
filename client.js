@@ -1,4 +1,4 @@
-// talk-to-doc client. Vanilla ES module.
+// reading-room client. Vanilla ES module.
 
 // ----- State -----
 const state = {

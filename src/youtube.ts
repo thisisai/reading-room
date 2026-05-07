@@ -87,7 +87,7 @@ export async function fetchYouTubeTranscript(
   const manualOnly = opts.manualOnly ?? false;
 
   const videoId = await getVideoId(url);
-  const outputDir = join(tmpdir(), 'talk-to-doc-yt', videoId);
+  const outputDir = join(tmpdir(), 'reading-room-yt', videoId);
   const outputTemplate = join(outputDir, 'subtitle.%(ext)s');
 
   if (existsSync(outputDir)) {

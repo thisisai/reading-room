@@ -307,4 +307,4 @@ serve({
   },
 });
 
-console.log(`talk-to-doc listening on http://localhost:${PORT}`);
+console.log(`reading-room listening on http://localhost:${PORT}`);

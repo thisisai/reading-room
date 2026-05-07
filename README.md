@@ -1,4 +1,4 @@
-# Talk to Doc
+# Reading Room
 
 把文件丟進來，直接跟 Claude AI 對話討論內容。支援上傳 `.txt`、貼上文字，或直接貼 YouTube 連結自動抓字幕。支援 Markdown 渲染、選取引用提問。
 
