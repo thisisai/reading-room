@@ -1,4 +1,5 @@
 import { serve } from "bun";
+import { fetchYouTubeTranscript } from "./src/youtube";
 
 type Session = {
   filename: string;
@@ -248,6 +249,29 @@ serve({
         filename: file.name,
         charCount: content.length,
       });
+    }
+
+    if (req.method === "POST" && pathname === "/api/import/youtube") {
+      let body: { url?: string };
+      try {
+        body = await req.json();
+      } catch {
+        return json({ error: "Invalid JSON" }, 400);
+      }
+      const url = (body.url ?? "").trim();
+      if (!url) return json({ error: "缺少 url" }, 400);
+      try {
+        const { videoId, langUsed, text } = await fetchYouTubeTranscript(url);
+        if (text.length > MAX_FILE_BYTES) {
+          return json({ error: "字幕長度超過 5MB 上限" }, 413);
+        }
+        const filename = `yt-${videoId}.txt`;
+        const sessionId = crypto.randomUUID();
+        sessions.set(sessionId, { filename, content: text, started: false });
+        return json({ sessionId, filename, charCount: text.length, videoId, langUsed });
+      } catch (e: any) {
+        return json({ error: e?.message ?? "抓取字幕失敗" }, 502);
+      }
     }
 
     const fileMatch = pathname.match(/^\/api\/file\/([^\/]+)$/);

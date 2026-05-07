@@ -67,6 +67,25 @@
           </div>
         </div>
 
+        <div class="upload-or" aria-hidden="true"><span>或</span></div>
+
+        <div class="paste-card">
+          <label for="ytUrlInput" class="paste-label">貼上 YouTube 連結</label>
+          <input
+            id="ytUrlInput"
+            class="yt-url-input"
+            type="url"
+            placeholder="https://www.youtube.com/watch?v=…"
+            autocomplete="off"
+          />
+          <div class="paste-row">
+            <span id="ytHint" class="paste-count">支援 watch / youtu.be / shorts</span>
+            <button id="ytSubmit" class="btn-primary" type="button" disabled>
+              抓取字幕
+            </button>
+          </div>
+        </div>
+
         <div id="uploadStatus" class="upload-status" hidden></div>
         <div id="uploadError" class="upload-error" hidden></div>
       </div>
@@ -93,6 +112,7 @@
                   <button id="docMarginLarger" class="doc-control-btn" type="button" aria-label="增加左右邊距" title="左右邊距 +">→←</button>
                 </div>
                 <button id="docPrefsReset" class="doc-control-reset" type="button" aria-label="重設字體與邊距" title="重設字體與邊距">重設</button>
+                <button id="docMdToggle" class="doc-control-btn" type="button" aria-label="切換 Markdown 顯示" title="切換 Markdown 顯示" aria-pressed="true">MD</button>
               </div>
             </div>
           </div>

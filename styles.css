@@ -1,9 +1,9 @@
 :root {
-  --bg: #f7f7f8;
+  --bg: #edede9;
   --surface: #ffffff;
   --surface-muted: #f2f2f3;
-  --border: #e5e5e7;
-  --border-strong: #d4d4d6;
+  --border: #dddcd6;
+  --border-strong: #cccbc4;
   --text: #1f1f22;
   --text-muted: #6b6b70;
   --text-subtle: #8d8d92;
@@ -13,7 +13,7 @@
   --primary-soft: #f6e8e1;
   --danger: #c0392b;
   --danger-soft: #fdecea;
-  --user-bubble-bg: #efefef;
+  --user-bubble-bg: var(--border);
   --user-bubble-text: #1f1f22;
   --assistant-bubble-bg: #ffffff;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
@@ -28,6 +28,7 @@
   --font-serif: ui-serif, Georgia, "Songti TC", "PingFang TC", serif;
   --doc-font-size: 15px;
   --doc-padding-x: 24px;
+  --doc-ink: #3d2a1c;
 }
 
 * {
@@ -312,10 +313,26 @@ body[data-state="c"] [data-section="c"] {
   font-family: var(--font-sans);
   font-size: 14px;
   line-height: 1.5;
-  background: var(--bg);
+  background: var(--surface);
   color: var(--text);
 }
 .paste-textarea:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-soft);
+}
+.yt-url-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-sizing: border-box;
+}
+.yt-url-input:focus {
   outline: none;
   border-color: var(--primary);
   box-shadow: 0 0 0 3px var(--primary-soft);
@@ -352,6 +369,11 @@ body[data-state="c"] [data-section="c"] {
 .pane-doc {
   flex: 1 1 50%;
   min-width: 280px;
+  background: var(--bg);
+}
+.pane-doc .pane-header,
+.pane-chat .pane-header {
+  background: var(--bg);
 }
 .pane-chat {
   flex: 1 1 50%;
@@ -417,17 +439,22 @@ body.resizing-panes * {
   padding-right: var(--doc-padding-x, 24px);
   white-space: pre-wrap;
   word-wrap: break-word;
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   font-size: var(--doc-font-size, 15px);
   line-height: 1.75;
-  color: var(--text);
-  background: var(--surface);
+  color: var(--doc-ink);
+  background: var(--bg);
   outline: none;
   user-select: text;
   -webkit-user-select: text;
 }
+.markdown-body ::selection,
 .doc-body::selection {
-  background: var(--primary-soft);
+  background: var(--primary);
+  color: #fff;
+}
+.doc-body.is-markdown {
+  white-space: normal;
 }
 
 /* Chat messages */
@@ -445,6 +472,16 @@ body.resizing-panes * {
 }
 .msg-user {
   justify-content: flex-end;
+}
+.msg-user-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  max-width: 70%;
+}
+.msg-user-stack .bubble {
+  max-width: 100%;
 }
 .msg-assistant {
   justify-content: flex-start;
@@ -481,14 +518,14 @@ body.resizing-panes * {
 }
 .bubble-quote {
   border-left: 3px solid var(--border-strong);
-  padding: 4px 0 4px 10px;
-  margin-bottom: 8px;
+  padding: 6px 12px;
   color: var(--text-muted);
   font-size: 13px;
   white-space: pre-wrap;
   word-wrap: break-word;
-  background: rgba(0, 0, 0, 0.03);
-  border-radius: 0 4px 4px 0;
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  max-width: 100%;
 }
 .bubble-meta {
   display: block;
@@ -509,62 +546,62 @@ body.resizing-panes * {
   }
 }
 
-/* Markdown rendering inside assistant bubbles only.
-   Block-level children of .bubble-body need pre-wrap turned off so
+/* Markdown rendering — shared by assistant bubbles and doc pane.
+   Block-level children of .markdown-body need pre-wrap turned off so
    list/heading/paragraph elements don't render with extra blank lines. */
 .msg-assistant .bubble {
   white-space: normal;
 }
-.msg-assistant .bubble-body {
+.markdown-body {
   display: block;
 }
-.msg-assistant .bubble-body > *:first-child {
+.markdown-body > *:first-child {
   margin-top: 0;
 }
-.msg-assistant .bubble-body > *:last-child {
+.markdown-body > *:last-child {
   margin-bottom: 0;
 }
-.msg-assistant .bubble-body p {
+.markdown-body p {
   margin: 0 0 8px;
 }
-.msg-assistant .bubble-body h1,
-.msg-assistant .bubble-body h2,
-.msg-assistant .bubble-body h3,
-.msg-assistant .bubble-body h4,
-.msg-assistant .bubble-body h5,
-.msg-assistant .bubble-body h6 {
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
   margin: 12px 0 6px;
   line-height: 1.3;
   font-weight: 600;
 }
-.msg-assistant .bubble-body h1 {
+.markdown-body h1 {
   font-size: 1.25em;
 }
-.msg-assistant .bubble-body h2 {
+.markdown-body h2 {
   font-size: 1.18em;
 }
-.msg-assistant .bubble-body h3 {
+.markdown-body h3 {
   font-size: 1.1em;
 }
-.msg-assistant .bubble-body h4,
-.msg-assistant .bubble-body h5,
-.msg-assistant .bubble-body h6 {
+.markdown-body h4,
+.markdown-body h5,
+.markdown-body h6 {
   font-size: 1em;
 }
-.msg-assistant .bubble-body ul,
-.msg-assistant .bubble-body ol {
+.markdown-body ul,
+.markdown-body ol {
   margin: 6px 0;
   padding-left: 22px;
 }
-.msg-assistant .bubble-body li {
+.markdown-body li {
   margin: 2px 0;
   line-height: 1.5;
 }
-.msg-assistant .bubble-body li > ul,
-.msg-assistant .bubble-body li > ol {
+.markdown-body li > ul,
+.markdown-body li > ol {
   margin: 2px 0;
 }
-.msg-assistant .bubble-body code {
+.markdown-body code {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas,
     monospace;
   font-size: 0.92em;
@@ -573,7 +610,7 @@ body.resizing-panes * {
   padding: 1px 5px;
   border-radius: 4px;
 }
-.msg-assistant .bubble-body pre {
+.markdown-body pre {
   margin: 8px 0;
   background: var(--surface-muted);
   border: 1px solid var(--border);
@@ -581,7 +618,7 @@ body.resizing-panes * {
   padding: 10px 12px;
   overflow-x: auto;
 }
-.msg-assistant .bubble-body pre code {
+.markdown-body pre code {
   display: block;
   background: transparent;
   border: none;
@@ -591,25 +628,25 @@ body.resizing-panes * {
   white-space: pre;
   line-height: 1.5;
 }
-.msg-assistant .bubble-body blockquote {
+.markdown-body blockquote {
   margin: 8px 0;
   padding: 4px 0 4px 12px;
   border-left: 3px solid var(--border-strong);
   color: var(--text-muted);
 }
-.msg-assistant .bubble-body a {
+.markdown-body a {
   color: var(--primary);
   text-decoration: none;
 }
-.msg-assistant .bubble-body a:hover {
+.markdown-body a:hover {
   text-decoration: underline;
 }
-.msg-assistant .bubble-body hr {
+.markdown-body hr {
   border: none;
   border-top: 1px solid var(--border);
   margin: 12px 0;
 }
-.msg-assistant .bubble-body strong {
+.markdown-body strong {
   font-weight: 600;
 }
 
@@ -637,7 +674,7 @@ body.resizing-panes * {
   color: var(--text);
   line-height: 1.5;
   max-height: 200px;
-  overflow-y: auto;
+  overflow-y: hidden;
   outline: none;
   transition: border-color 120ms ease, box-shadow 120ms ease;
 }
@@ -776,6 +813,10 @@ body.resizing-panes * {
 .doc-control-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+.doc-control-btn[aria-pressed="true"] {
+  background: var(--primary-soft);
+  color: var(--primary);
 }
 .doc-control-reset {
   appearance: none;

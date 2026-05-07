@@ -14,5 +14,5 @@
     "esModuleInterop": true,
     "jsx": "preserve"
   },
-  "include": ["server.ts"]
+  "include": ["server.ts", "src/**/*"]
 }

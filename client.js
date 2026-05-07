@@ -11,6 +11,7 @@ const state = {
   abortController: null,
   loginPollTimer: null,
   loginPollDeadline: 0,
+  docContent: null,
 };
 
 // ----- DOM refs -----
@@ -39,11 +40,15 @@ const els = {
   pasteTextarea: $("pasteTextarea"),
   pasteCount: $("pasteCount"),
   pasteSubmit: $("pasteSubmit"),
+  ytUrlInput: $("ytUrlInput"),
+  ytHint: $("ytHint"),
+  ytSubmit: $("ytSubmit"),
   docFontSmaller: $("docFontSmaller"),
   docFontLarger: $("docFontLarger"),
   docMarginSmaller: $("docMarginSmaller"),
   docMarginLarger: $("docMarginLarger"),
   docPrefsReset: $("docPrefsReset"),
+  docMdToggle: $("docMdToggle"),
 };
 
 // ----- Helpers -----
@@ -204,7 +209,8 @@ async function handleUpload(file) {
 function renderDoc(filename, content) {
   els.docFilename.textContent = filename;
   els.docCharCount.textContent = `${fmtNumber((content || "").length)} 字元`;
-  els.docBody.textContent = content || "";
+  state.docContent = content || "";
+  rerenderDoc();
 }
 
 function enterChatState() {
@@ -233,7 +239,9 @@ function resetToUploadState() {
   state.charCount = 0;
   sessionStorage.removeItem("ttd.sessionId");
   els.chatMessages.innerHTML = "";
-  els.docBody.textContent = "";
+  els.docBody.innerHTML = "";
+  els.docBody.classList.remove("is-markdown", "markdown-body");
+  state.docContent = null;
   clearArmedQuote();
   els.newDocBtn.hidden = true;
   els.fileInput.value = "";
@@ -248,6 +256,48 @@ function updatePasteSubmitState() {
   const len = els.pasteTextarea.value.length;
   els.pasteCount.textContent = `${fmtNumber(len)} 字元`;
   els.pasteSubmit.disabled = els.pasteTextarea.value.trim().length === 0;
+}
+
+function updateYtSubmitState() {
+  const val = (els.ytUrlInput?.value ?? "").trim();
+  const isYt = /youtu(?:be\.com|\.be)\//i.test(val);
+  if (els.ytSubmit) els.ytSubmit.disabled = !isYt;
+}
+
+async function handleYouTubeSubmit() {
+  const url = (els.ytUrlInput?.value ?? "").trim();
+  if (!url) return;
+  showError(els.uploadError, "");
+  els.ytSubmit.disabled = true;
+  els.uploadStatus.hidden = false;
+  els.uploadStatus.textContent = "抓取字幕中（首次可能需要 5–10 秒）…";
+  try {
+    const r = await fetch("/api/import/youtube", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    if (!r.ok) {
+      let errMsg = `抓取失敗 (${r.status})`;
+      try { errMsg = (await r.json()).error || errMsg; } catch {}
+      showError(els.uploadError, errMsg);
+      return;
+    }
+    const data = await r.json();
+    state.sessionId = data.sessionId;
+    state.filename = data.filename;
+    state.charCount = data.charCount;
+    sessionStorage.setItem("ttd.sessionId", state.sessionId);
+    const fr = await fetch(`/api/file/${state.sessionId}`);
+    const fdata = await fr.json();
+    renderDoc(fdata.filename, fdata.content);
+    enterChatState();
+  } catch (err) {
+    showError(els.uploadError, "抓取字幕失敗：" + (err?.message || err));
+  } finally {
+    els.ytSubmit.disabled = false;
+    els.uploadStatus.hidden = true;
+  }
 }
 
 function handlePasteSubmit() {
@@ -265,6 +315,7 @@ function handlePasteSubmit() {
 // ----- Doc pane prefs (font size + horizontal padding) -----
 const DOC_FONT = { MIN: 12, MAX: 22, STEP: 1, DEFAULT: 15, KEY: "tdoc.docFontSize" };
 const DOC_PAD  = { MIN: 0,  MAX: 64, STEP: 8, DEFAULT: 24, KEY: "tdoc.docPaddingX" };
+const DOC_MD   = { DEFAULT: true, KEY: "tdoc.docMarkdown" };
 
 function clampToStep(value, spec) {
   const n = Number(value);
@@ -273,7 +324,7 @@ function clampToStep(value, spec) {
   return Math.max(spec.MIN, Math.min(spec.MAX, stepped));
 }
 
-const docPrefs = { font: DOC_FONT.DEFAULT, pad: DOC_PAD.DEFAULT };
+const docPrefs = { font: DOC_FONT.DEFAULT, pad: DOC_PAD.DEFAULT, markdown: DOC_MD.DEFAULT };
 
 function applyDocFontSize(px) {
   docPrefs.font = px;
@@ -303,10 +354,33 @@ function updateDocControlsState() {
   if (els.docFontLarger)  els.docFontLarger.disabled  = docPrefs.font >= DOC_FONT.MAX;
   if (els.docMarginSmaller) els.docMarginSmaller.disabled = docPrefs.pad <= DOC_PAD.MIN;
   if (els.docMarginLarger)  els.docMarginLarger.disabled  = docPrefs.pad >= DOC_PAD.MAX;
+  if (els.docMdToggle) {
+    els.docMdToggle.setAttribute("aria-pressed", String(docPrefs.markdown));
+    els.docMdToggle.classList.toggle("is-active", docPrefs.markdown);
+  }
 }
+function rerenderDoc() {
+  const content = state.docContent || "";
+  if (docPrefs.markdown) {
+    els.docBody.innerHTML = renderMarkdown(content);
+    els.docBody.classList.add("is-markdown", "markdown-body");
+  } else {
+    els.docBody.textContent = content;
+    els.docBody.classList.remove("is-markdown", "markdown-body");
+  }
+}
+
+function applyDocMarkdown(enabled) {
+  docPrefs.markdown = enabled;
+  try { localStorage.setItem(DOC_MD.KEY, String(enabled)); } catch {}
+  rerenderDoc();
+}
+
 function loadDocPrefs() {
   const f = clampToStep(localStorage.getItem(DOC_FONT.KEY) ?? DOC_FONT.DEFAULT, DOC_FONT);
   const p = clampToStep(localStorage.getItem(DOC_PAD.KEY)  ?? DOC_PAD.DEFAULT,  DOC_PAD);
+  const raw = localStorage.getItem(DOC_MD.KEY);
+  docPrefs.markdown = raw === null ? DOC_MD.DEFAULT : raw !== "false";
   applyDocFontSize(f);
   applyDocPaddingX(p);
   updateDocControlsState();
@@ -416,12 +490,17 @@ function appendMessage(role, text, opts = {}) {
   wrap.className = `msg msg-${role}`;
   const bubble = document.createElement("div");
   bubble.className = "bubble";
+
+  let quoteEl = null;
   if (opts.quote) {
-    const q = document.createElement("div");
-    q.className = "bubble-quote";
-    q.textContent = opts.quote;
-    bubble.appendChild(q);
+    quoteEl = document.createElement("div");
+    quoteEl.className = "bubble-quote";
+    quoteEl.textContent = opts.quote;
+    if (role !== "user") {
+      bubble.appendChild(quoteEl);
+    }
   }
+
   // Use a div for assistant bubbles so block-level markdown elements
   // (headings, lists, pre, blockquote, etc.) are valid children.
   // User bubbles stay as span and use plain text only.
@@ -429,10 +508,20 @@ function appendMessage(role, text, opts = {}) {
     role === "assistant"
       ? document.createElement("div")
       : document.createElement("span");
-  body.className = "bubble-body";
+  body.className = role === "assistant" ? "bubble-body markdown-body" : "bubble-body";
   body.textContent = text || "";
   bubble.appendChild(body);
-  wrap.appendChild(bubble);
+
+  if (opts.quote && role === "user") {
+    const stack = document.createElement("div");
+    stack.className = "msg-user-stack";
+    stack.appendChild(quoteEl);
+    stack.appendChild(bubble);
+    wrap.appendChild(stack);
+  } else {
+    wrap.appendChild(bubble);
+  }
+
   els.chatMessages.appendChild(wrap);
   scrollChatToBottom();
   return { wrap, bubble, body };
@@ -957,6 +1046,20 @@ function init() {
   });
   updatePasteSubmitState();
 
+  // YouTube URL import
+  if (els.ytUrlInput) {
+    els.ytUrlInput.addEventListener("input", updateYtSubmitState);
+    els.ytUrlInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter" && !e.isComposing) {
+        e.preventDefault();
+        if (!els.ytSubmit.disabled) handleYouTubeSubmit();
+      }
+    });
+  }
+  if (els.ytSubmit) {
+    els.ytSubmit.addEventListener("click", handleYouTubeSubmit);
+  }
+
   // Doc selection
   els.docBody.addEventListener("mouseup", handleDocMouseUp);
   els.docBody.addEventListener("keyup", handleDocMouseUp);
@@ -1012,6 +1115,10 @@ function init() {
   if (els.docMarginSmaller) els.docMarginSmaller.addEventListener("click", () => bumpDocPad(-1));
   if (els.docMarginLarger)  els.docMarginLarger.addEventListener("click",  () => bumpDocPad(+1));
   if (els.docPrefsReset) els.docPrefsReset.addEventListener("click", resetDocPrefs);
+  if (els.docMdToggle) els.docMdToggle.addEventListener("click", () => {
+    applyDocMarkdown(!docPrefs.markdown);
+    updateDocControlsState();
+  });
 
   // Boot
   bootApp();
