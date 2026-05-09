@@ -1,5 +1,14 @@
 import { serve } from "bun";
+import { mkdirSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fetchYouTubeTranscript } from "./src/youtube";
+
+// 讓 chat 的 claude -p 在一個乾淨的 cwd 執行，避免自動載入 reading-room
+// 自己的 CLAUDE.md 與 ~/.claude/projects/.../memory/ 那些 dev 指引和 user
+// 偏好流進對話 context。OAuth 綁 keychain，不受 cwd 影響。
+const CHAT_CWD = join(tmpdir(), "reading-room-chat-cwd");
+mkdirSync(CHAT_CWD, { recursive: true });
 
 type Session = {
   filename: string;
@@ -62,6 +71,12 @@ async function logout(): Promise<{ ok: boolean; error?: string }> {
 }
 
 function buildChatArgs(sid: string, session: Session): string[] {
+  // 把 chat 跑得像純粹的 chat completion：
+  // - --system-prompt 取代 Claude Code 預設的 agent system prompt（不 append）
+  // - --disable-slash-commands 關掉 skills（含 using-superpowers）
+  // - --strict-mcp-config 不繼承 user-level MCP servers
+  // - --setting-sources project 不載入 user-level settings（hooks、env、auto-memory 設定）
+  //   cwd 指向乾淨 temp 目錄，所以實際上 project source 也是空的
   const args = [
     "-p",
     "--output-format",
@@ -72,12 +87,13 @@ function buildChatArgs(sid: string, session: Session): string[] {
     "",
     "--model",
     "sonnet",
-    // 關掉 skills，避免 user-level 的 using-superpowers 等規則
-    // 讓模型在回答前先輸出「skill 檢查」的思考流程。
     "--disable-slash-commands",
+    "--strict-mcp-config",
+    "--setting-sources",
+    "project",
   ];
   if (!session.started) {
-    args.push("--session-id", sid, "--append-system-prompt", SYSTEM_PROMPT);
+    args.push("--session-id", sid, "--system-prompt", SYSTEM_PROMPT);
   } else {
     args.push("--resume", sid);
   }
@@ -101,6 +117,7 @@ function chatStream(sid: string, message: string, selection?: string): Response 
 
   const args = buildChatArgs(sid, session);
   const proc = Bun.spawn(["claude", ...args], {
+    cwd: CHAT_CWD,
     stdin: "pipe",
     stdout: "pipe",
     stderr: "pipe",
