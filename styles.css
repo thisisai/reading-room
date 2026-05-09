@@ -507,12 +507,10 @@ body.resizing-panes * {
   color: var(--user-bubble-text);
   border-bottom-right-radius: 4px;
 }
-/* Assistant replies render as full-width content (no bubble), so reading
-   feels closer to the left doc pane and the line measure can breathe. */
+/* Assistant replies render full-width with no bubble, mirroring the doc pane. */
 .msg-assistant .bubble {
   background: transparent;
   border: none;
-  border-radius: 0;
   padding: 0;
   max-width: 100%;
   width: 100%;
