@@ -15,7 +15,6 @@
   --danger-soft: #fdecea;
   --user-bubble-bg: var(--border);
   --user-bubble-text: #1f1f22;
-  --assistant-bubble-bg: #ffffff;
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.12);
@@ -508,10 +507,18 @@ body.resizing-panes * {
   color: var(--user-bubble-text);
   border-bottom-right-radius: 4px;
 }
+/* Assistant replies render as full-width content (no bubble), so reading
+   feels closer to the left doc pane and the line measure can breathe. */
 .msg-assistant .bubble {
-  background: var(--assistant-bubble-bg);
-  border: 1px solid var(--border);
-  border-bottom-left-radius: 4px;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  max-width: 100%;
+  width: 100%;
+  font-size: 15px;
+  line-height: 1.7;
+  white-space: normal;
 }
 .msg-system .bubble {
   background: var(--danger-soft);
@@ -551,12 +558,7 @@ body.resizing-panes * {
   }
 }
 
-/* Markdown rendering — shared by assistant bubbles and doc pane.
-   Block-level children of .markdown-body need pre-wrap turned off so
-   list/heading/paragraph elements don't render with extra blank lines. */
-.msg-assistant .bubble {
-  white-space: normal;
-}
+/* Markdown rendering — shared by assistant content and doc pane. */
 .markdown-body {
   display: block;
 }
