@@ -15,7 +15,7 @@ const PORT = Number(process.env.PORT ?? 3000);
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
 
 const SYSTEM_PROMPT =
-  "你是文件學習助手。使用者已上傳一份 txt 文件，將在第一條訊息中提供全文。後續對話請以這份文件為主題協助使用者理解、討論、提問。請用繁體中文回答。";
+  "你是文件學習助手。使用者已上傳一份 txt 文件，將在第一條訊息中提供全文。後續對話請以這份文件為主題協助使用者理解、討論、提問。請用繁體中文回答。直接回答問題，不要描述自己的思考流程、技能判斷或工具決策。";
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -72,6 +72,9 @@ function buildChatArgs(sid: string, session: Session): string[] {
     "",
     "--model",
     "sonnet",
+    // 關掉 skills，避免 user-level 的 using-superpowers 等規則
+    // 讓模型在回答前先輸出「skill 檢查」的思考流程。
+    "--disable-slash-commands",
   ];
   if (!session.started) {
     args.push("--session-id", sid, "--append-system-prompt", SYSTEM_PROMPT);
