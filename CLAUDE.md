@@ -43,6 +43,17 @@ bun run start        # 生產模式
 bun test             # 跑所有測試（目前只有 src/yt-json3-parser.test.ts）
 ```
 
+## ⚠️ 完成前必做：真實畫面驗證
+
+**任何涉及 UI 或 API 的功能，完成後必須實際在瀏覽器操作一遍，確認畫面行為符合預期，才可宣告完成。** 不能只靠「程式碼看起來正確」或「build 沒報錯」就放行。
+
+驗證方式：使用 Chrome DevTools MCP（`mcp__chrome-devtools__*`）或 Playwright MCP（`mcp__plugin_playwright_playwright__*`）進行：
+
+1. 確認 server 在跑（`bun run dev`）
+2. 打開 http://localhost:3000
+3. 走過新功能的主流程，截圖確認關鍵畫面狀態
+4. 開 Console 確認沒有未預期的 error / warning
+
 ## 專案結構
 
 ```

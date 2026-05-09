@@ -28,7 +28,6 @@ const els = {
   uploadStatus: $("uploadStatus"),
   uploadError: $("uploadError"),
   docFilename: $("docFilename"),
-  docCharCount: $("docCharCount"),
   docBody: $("docBody"),
   chatMessages: $("chatMessages"),
   chatInput: $("chatInput"),
@@ -75,6 +74,16 @@ function showError(el, msg) {
 
 function fmtNumber(n) {
   return n.toLocaleString("en-US");
+}
+
+// 把瀏覽器 fetch 的網路層錯誤翻成在地化訊息。
+// Chrome → "Failed to fetch"；Firefox → "NetworkError when attempting…"；Safari → "Load failed"。
+function friendlyErrorMessage(err) {
+  const msg = err?.message || String(err ?? "");
+  if (err instanceof TypeError && /failed to fetch|networkerror|load failed/i.test(msg)) {
+    return "無法連線到伺服器（伺服器可能尚未啟動或已中斷）";
+  }
+  return msg || "未知錯誤";
 }
 
 // ----- Auth flow -----
@@ -124,7 +133,7 @@ async function handleLogout() {
       return;
     }
   } catch (err) {
-    alert("登出失敗：" + (err?.message || err));
+    alert("登出失敗：" + friendlyErrorMessage(err));
     return;
   } finally {
     els.logoutBtn.disabled = false;
@@ -244,7 +253,7 @@ async function handleUpload(file) {
   } catch (err) {
     showError(
       els.uploadError,
-      "上傳失敗：" + (err?.message || err),
+      "上傳失敗：" + friendlyErrorMessage(err),
     );
     els.uploadStatus.hidden = true;
   }
@@ -256,7 +265,6 @@ function stripExt(name) {
 
 function renderDoc(filename, content) {
   els.docFilename.textContent = stripExt(filename);
-  els.docCharCount.textContent = `${fmtNumber((content || "").length)} 字元`;
   state.docContent = content || "";
   rerenderDoc();
 }
@@ -317,7 +325,7 @@ async function handleYouTubeSubmit() {
   if (!url) return;
   showError(els.uploadError, "");
   els.ytSubmit.disabled = true;
-  els.ytHint.textContent = "抓取字幕中（首次可能需要 5–10 秒）…";
+  els.ytHint.textContent = "抓取字幕中（首次可能需要 15–30 秒）…";
   try {
     const r = await fetch("/api/import/youtube", {
       method: "POST",
@@ -340,7 +348,7 @@ async function handleYouTubeSubmit() {
     renderDoc(fdata.filename, fdata.content);
     enterChatState();
   } catch (err) {
-    showError(els.uploadError, "抓取字幕失敗：" + (err?.message || err));
+    showError(els.uploadError, "抓取字幕失敗：" + friendlyErrorMessage(err));
   } finally {
     els.ytSubmit.disabled = false;
     els.ytHint.textContent = "支援 watch / youtu.be / shorts";
@@ -763,6 +771,33 @@ function renderMarkdown(src) {
       continue;
     }
 
+    // GFM table: header row followed by separator row (|---|---|)
+    const tableRowRe = /^\|.+\|\s*$/;
+    const tableSepRe = /^\|[-:| ]+\|\s*$/;
+    if (tableRowRe.test(line) && i + 1 < lines.length && tableSepRe.test(lines[i + 1])) {
+      flushListStack();
+      const parseCells = (row) => row.split("|").slice(1, -1).map((c) => c.trim());
+      const headers = parseCells(line);
+      i += 2; // skip header + separator
+      const rows = [];
+      while (i < lines.length && tableRowRe.test(lines[i])) {
+        rows.push(parseCells(lines[i]));
+        i++;
+      }
+      let html = "<table><thead><tr>";
+      for (const h of headers) html += "<th>" + renderInline(h) + "</th>";
+      html += "</tr></thead><tbody>";
+      for (const row of rows) {
+        html += "<tr>";
+        for (let c = 0; c < headers.length; c++)
+          html += "<td>" + renderInline(row[c] ?? "") + "</td>";
+        html += "</tr>";
+      }
+      html += "</tbody></table>";
+      out.push('<div class="table-wrap">' + html + "</div>");
+      continue;
+    }
+
     // Paragraph: gather consecutive non-blank, non-special lines.
     flushListStack();
     const para = [line];
@@ -775,6 +810,7 @@ function renderMarkdown(src) {
       if (/^\s*-{3,}\s*$/.test(next) || /^\s*\*{3,}\s*$/.test(next)) break;
       if (/^\s*&gt;\s?/.test(next)) break;
       if (/^\s*[-*]\s+/.test(next) || /^\s*\d+\.\s+/.test(next)) break;
+      if (tableRowRe.test(next) && i + 1 < lines.length && tableSepRe.test(lines[i + 1])) break;
       para.push(next);
       i++;
     }
@@ -807,6 +843,7 @@ async function sendMessage() {
     appendSystemError("尚未上傳文件");
     return;
   }
+
 
   const quote = state.armedQuote;
   appendMessage("user", message, { quote: quote || null });
@@ -894,7 +931,7 @@ async function sendMessage() {
     } else {
       caret.remove();
       appendSystemError(
-        "連線錯誤：" + (err?.message || String(err)),
+        "連線錯誤：" + friendlyErrorMessage(err),
       );
     }
   } finally {

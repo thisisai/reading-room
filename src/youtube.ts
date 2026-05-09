@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { parseJson3Transcript } from './yt-json3-parser';
 import { parseVttTranscript } from './yt-vtt-parser';
+import { joinCueLines } from './yt-sentence-joiner';
 
 const SUB_EXTS = ['json3', 'vtt'] as const;
 type SubExt = (typeof SUB_EXTS)[number];
@@ -202,9 +203,10 @@ export async function fetchYouTubeTranscript(
 
       const ext = getSubtitleExt(hit.subtitlePath);
       const raw = readFileSync(hit.subtitlePath, 'utf8');
-      const text = ext === 'vtt'
+      const parsed = ext === 'vtt'
         ? parseVttTranscript(raw)
         : parseJson3Transcript(raw);
+      const text = joinCueLines(parsed);
       if (!text.trim()) continue;
 
       return { videoId, videoTitle, langUsed: hit.langUsed, text };

@@ -4,7 +4,7 @@
 
 ## 事前準備
 
-需要安裝兩個東西：
+需要安裝三個東西：
 
 **1. Bun**（執行環境）
 
@@ -35,7 +35,8 @@ claude auth login --claudeai
 ## 啟動
 
 ```bash
-bun run server.ts
+bun run dev      # 開發模式（hot reload）
+bun run start    # 生產模式
 ```
 
 打開瀏覽器前往 [http://localhost:3000](http://localhost:3000)。
@@ -43,7 +44,7 @@ bun run server.ts
 預設 port 是 3000，可以用環境變數覆蓋：
 
 ```bash
-PORT=8080 bun run server.ts
+PORT=8080 bun run dev
 ```
 
 ## 使用方式

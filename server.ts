@@ -221,6 +221,18 @@ serve({
     if (req.method === "GET" && pathname === "/styles.css") {
       return staticFile("styles.css", "text/css; charset=utf-8");
     }
+    if (req.method === "GET" && pathname === "/favicon.ico") {
+      return staticFile("favicon.ico", "image/x-icon");
+    }
+    if (req.method === "GET" && pathname === "/favicon.svg") {
+      return staticFile("favicon.svg", "image/svg+xml");
+    }
+    if (req.method === "GET" && pathname === "/favicon-32x32.png") {
+      return staticFile("favicon-32x32.png", "image/png");
+    }
+    if (req.method === "GET" && pathname === "/favicon-16x16.png") {
+      return staticFile("favicon-16x16.png", "image/png");
+    }
 
     if (req.method === "GET" && pathname === "/api/auth/status") {
       return json(await getAuthStatus());
